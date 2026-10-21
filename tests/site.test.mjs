@@ -124,12 +124,13 @@ test('loading disables repeat submit and restores controls after confirmed succe
   resolveFetch({ok:true,json:async()=>({success:true})});await settle();
   assert.equal(field('submit-lead').disabled,false);assert.equal(field('lead-form').getAttribute('aria-busy'),'false');
 });
-test('missing integration and server failure show an error, never success',async()=>{
+test('local API stub succeeds, while a configured server failure shows an error',async()=>{
   const originalError=console.error;console.error=()=>{};
   try{
     validForm();submit();await settle();
-    assert.equal(field('form-status').hidden,false);assert.equal(field('success-card').hidden,true);
+    assert.equal(field('form-status').hidden,true);assert.equal(field('success-card').hidden,false);
     endpoint();window.fetch=async()=>({ok:false,status:500,json:async()=>({success:false})});
+    validForm();
     submit();await settle();assert.equal(field('form-status').hidden,false);assert.equal(field('success-card').hidden,true);
   }finally{console.error=originalError;}
 });

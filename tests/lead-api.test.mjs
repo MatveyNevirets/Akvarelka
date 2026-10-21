@@ -6,9 +6,14 @@ import { submitLead } from '../dist/lead-api.mjs';
 function environment(){
   const window=new Window();Object.assign(globalThis,{window,document:window.document});return window;
 }
-test('lead API refuses to claim success without a configured endpoint',async()=>{
+test('lead API stub confirms a complete lead without a configured endpoint',async()=>{
   const window=environment();
-  await assert.rejects(()=>submitLead({name:'Test'}),/not configured/);window.close();
+  const result=await submitLead({parentName:'Анна',childAge:7,phone:'+79271234567',direction:'english'});
+  assert.equal(result.success,true);assert.equal(result.mock,true);window.close();
+});
+test('lead API stub rejects incomplete data',async()=>{
+  const window=environment();
+  await assert.rejects(()=>submitLead({parentName:'Анна'}),/incomplete data/);window.close();
 });
 test('lead API requires a successful HTTP response and explicit JSON acknowledgement',async()=>{
   const window=environment();
