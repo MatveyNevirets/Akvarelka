@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 const chrome='C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const base='http://127.0.0.1:5187';
 const sizes=[[320,568],[360,800],[375,667],[375,812],[390,844],[393,852],[412,915],[430,932],[768,1024],[820,1180],[1024,768],[1280,800],[1366,768],[1440,900],[1600,900],[1920,1080]];
-const screenshotSizes=new Set(['320x568','375x812','430x932','768x1024','1024x768','1440x900','1920x1080']);
+const screenshotSizes=new Set(['320x568','375x812','390x844','393x852','430x932','768x1024','1024x768','1440x900','1920x1080']);
 await mkdir('qa-screenshots',{recursive:true});
 const browser=await chromium.launch({headless:true,executablePath:chrome,args:['--disable-dev-shm-usage']});
 const findings=[];
@@ -66,6 +66,8 @@ try{
   const errorPage=await errorContext.newPage();
   await errorPage.goto(base,{waitUntil:'networkidle'});await errorPage.locator('#signup').scrollIntoViewIfNeeded();
   await errorPage.locator('#parent').fill('Анна');await errorPage.locator('#age').fill('7');await errorPage.locator('#phone').fill('89271234567');
+  await errorPage.evaluate(()=>{const meta=document.createElement('meta');meta.name='lead-endpoint';meta.content='/api/leads';document.head.append(meta);});
+  await errorPage.route('**/api/leads',route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({success:false})}));
   await errorPage.locator('#submit-lead').click();await errorPage.locator('#form-status').waitFor({state:'visible'});
   assert.equal(await errorPage.locator('#success-card').isVisible(),false);await errorPage.screenshot({path:'qa-screenshots/state-form-error.png'});await errorContext.close();
   const report=findings.concat('Interactive states: menu, validation, loading, success and error — ok').join('\n');
