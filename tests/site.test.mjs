@@ -22,6 +22,8 @@ function paste(value){
 }
 function edit(inputType,data=null){field('phone').dispatchEvent(new window.InputEvent('beforeinput',{bubbles:true,cancelable:true,inputType,data}));}
 function submit(){field('lead-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));}
+async function settle(){await new Promise(resolve=>setTimeout(resolve,0));}
+function endpoint(value='/api/leads'){const meta=document.createElement('meta');meta.name='lead-endpoint';meta.content=value;document.head.append(meta);}
 function validForm(){input('parent','Анна');input('age','7');field('phone').focus();paste('89271234567');}
 const direction = value => document.querySelector(`[name="direction"][value="${value}"]`);
 const selected = () => document.querySelector('[name="direction"]:checked')?.value;
@@ -74,40 +76,62 @@ test('errors stay hidden initially, then show by the corresponding fields',()=>{
   submit();
   assert.equal(field('parent-error').hidden,false);
   assert.equal(field('age-error').hidden,false);
-  assert.equal(field('send-message').hidden,true);
+  assert.equal(field('success-card').hidden,true);
   assert.equal(document.activeElement,field('parent'));
-  validForm();submit();assert.equal(field('phone-error').hidden,true);
+  validForm();field('phone').dispatchEvent(new window.Event('blur'));assert.equal(field('phone-error').hidden,true);
 });
 test('whitespace name, incomplete phone and invalid ages do not create a message',()=>{
   validForm();input('parent','   ');submit();assert.equal(field('parent-error').hidden,false);
   input('parent','Анна');input('phone','92712345');submit();assert.equal(field('phone-error').hidden,false);
   paste('89271234567');
-  for(const age of ['0','19','7.5','']){input('age',age);submit();assert.equal(field('age-error').hidden,false);assert.equal(field('send-message').hidden,true);}
+  for(const age of ['0','19','7.5','']){input('age',age);submit();assert.equal(field('age-error').hidden,false);assert.equal(field('success-card').hidden,true);}
 });
 test('direction is required even if the initial consultation was cleared',()=>{
   validForm();document.querySelectorAll('[name="direction"]').forEach(radio=>radio.checked=false);submit();
   assert.equal(field('direction-error').hidden,false);
-  direction('consultation').click();submit();assert.equal(field('direction-error').hidden,true);
+  direction('consultation').click();assert.equal(field('direction-error').hidden,true);
 });
-test('English CTAs select English; manual direction change overrides the CTA and message',()=>{
+test('English CTAs select English; manual direction change overrides the CTA payload',async()=>{
   document.querySelector('.english-card a').click();assert.equal(selected(),'english');
   direction('art').click();assert.equal(selected(),'art');
-  validForm();submit();
-  assert.ok(field('message-text').value.includes('Художественные курсы'));
-  assert.ok(!field('message-text').value.includes('Первое знакомство'));
-  assert.ok(field('message-text').value.includes('+79271234567'));
+  endpoint();let payload;
+  window.fetch=async(url,options)=>{payload=JSON.parse(options.body);return{ok:true,json:async()=>({success:true})};};
+  validForm();submit();await settle();
+  assert.equal(payload.directionLabel,'Художественные курсы');
+  assert.equal(payload.context,null);
+  assert.equal(payload.phone,'+79271234567');
 });
 test('every CTA maps to its context, while general CTAs choose consultation',()=>{
   const cases=[['.hero-actions a','english'],['.english-card.lavender a','english'],['.header-cta','consultation'],['.mobile-cta a','consultation'],['.contact-actions a[href="#signup"]','consultation'],['.activity-list a:nth-child(1)','school'],['.activity-list a:nth-child(2)','art'],['.activity-list a:nth-child(3)','children']];
   for(const [selector,value] of cases){document.querySelector(selector).click();assert.equal(selected(),value,selector);}
 });
-test('prepared message has the real recipient, remains unsent and is cleared on edits',()=>{
-  validForm();submit();
-  assert.equal(field('lead-form').dataset.state,'ready');
-  assert.ok(field('send-message').href.startsWith('https://wa.me/79172666597?text='));
-  assert.ok(field('form-status').textContent.includes('пока не отправлена'));
-  assert.ok(decodeURIComponent(field('send-message').href).includes('нужна консультация'));
-  input('age','8');assert.equal(field('send-message').hidden,true);assert.equal(field('message-text').value,'');assert.equal(field('send-message').hasAttribute('href'),false);
+test('confirmed API response shows success, clears fields and never creates a WhatsApp action',async()=>{
+  endpoint();let count=0;
+  window.fetch=async()=>{count++;return{ok:true,json:async()=>({success:true,id:'lead-1'})};};
+  validForm();submit();await settle();
+  assert.equal(count,1);assert.equal(field('lead-form').dataset.state,'success');
+  assert.equal(field('success-card').hidden,false);assert.equal(field('form-status').hidden,true);
+  assert.equal(field('parent').value,'');assert.equal(field('phone-normalized').value,'');assert.equal(selected(),'consultation');
+  assert.equal(field('lead-form').querySelector('[href*="wa.me"]'),null);
+  assert.equal(field('lead-form').textContent.includes('WhatsApp'),false);
+  assert.equal(field('lead-form').textContent.includes('Скопировать'),false);
+});
+test('loading disables repeat submit and restores controls after confirmed success',async()=>{
+  endpoint();let resolveFetch;let count=0;
+  window.fetch=()=>{count++;return new Promise(resolve=>{resolveFetch=resolve;});};
+  validForm();submit();submit();
+  assert.equal(count,1);assert.equal(field('submit-lead').disabled,true);assert.equal(field('submit-lead').textContent.includes('Отправляем'),true);assert.equal(field('lead-form').getAttribute('aria-busy'),'true');
+  resolveFetch({ok:true,json:async()=>({success:true})});await settle();
+  assert.equal(field('submit-lead').disabled,false);assert.equal(field('lead-form').getAttribute('aria-busy'),'false');
+});
+test('missing integration and server failure show an error, never success',async()=>{
+  const originalError=console.error;console.error=()=>{};
+  try{
+    validForm();submit();await settle();
+    assert.equal(field('form-status').hidden,false);assert.equal(field('success-card').hidden,true);
+    endpoint();window.fetch=async()=>({ok:false,status:500,json:async()=>({success:false})});
+    submit();await settle();assert.equal(field('form-status').hidden,false);assert.equal(field('success-card').hidden,true);
+  }finally{console.error=originalError;}
 });
 test('all local resources, module imports, anchors and error descriptions exist',()=>{
   for(const element of document.querySelectorAll('[src],link[href]')){

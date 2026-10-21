@@ -76,3 +76,89 @@ details[open] summary:after{transform:rotate(180deg)}
   .button:active{transform:none}
   .english-card:hover,.review:hover,.activity-icon{transform:none}
 }
+
+/* Final responsive pass and direct lead submission states. */
+html{max-width:100%;overflow-x:hidden}
+body{min-width:320px;max-width:100%;overflow-x:hidden;overflow-x:clip;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+img,svg{max-width:100%}
+.hero>*,.english-grid>*,.signup-grid>*,.faq-grid>*,.atmosphere-grid>*,.review-grid>*,.contacts-grid>*,.faq-list,details{min-width:0}
+h1,h2,h3,p,blockquote,summary,.button,.direction-option span{overflow-wrap:break-word}
+.header{padding-top:env(safe-area-inset-top)}
+.button{max-width:100%;min-height:44px;text-align:center;white-space:normal}
+.submit-button{width:100%;position:relative}
+.submit-button:disabled{cursor:wait;opacity:.78;transform:none;box-shadow:none}
+.submit-button:disabled .submit-arrow{opacity:0}
+.submit-button:disabled:after{content:'';position:absolute;right:22px;width:15px;height:15px;border:2px solid #30362d44;border-top-color:#30362d;border-radius:50%;animation:submit-spin .7s linear infinite}
+@keyframes submit-spin{to{transform:rotate(360deg)}}
+.form-status{border:1px solid #d9b3ac;background:#f9ece8;color:#75443f;border-radius:8px;padding:12px 14px;margin-top:14px;font-size:11px;line-height:1.6}
+.success-card{display:flex;align-items:flex-start;gap:13px;border:1px solid #a8b681;background:#f1f4e8;border-radius:10px;padding:16px;margin-top:14px}
+.success-card:focus{outline:none;box-shadow:0 0 0 3px #dbeaac70}
+.success-icon{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:50%;background:#7d9250;color:#fff;font-weight:700}
+.success-card strong,.success-card small{display:block}
+.success-card strong{font-size:13px;margin-bottom:3px}
+.success-card small{color:var(--muted);font-size:10px;line-height:1.55}
+form[data-state="submitting"]{border-color:#aab68d;box-shadow:0 0 0 3px #dbeaac32}
+form[data-state="success"]{border-color:#97a66c;box-shadow:0 0 0 3px #dbeaac45}
+.menu-open{overflow:hidden}
+
+@media(max-width:900px){
+  .wrap{width:calc(100% - clamp(40px,8vw,70px))}
+  .header-inner{height:76px;justify-content:space-between}
+  .header .brand{font-size:21px}.header .brand-flower{font-size:42px}
+  .menu-toggle{display:block;background:transparent;border:1px solid #d9ddce;border-radius:7px;font-size:22px;width:44px;height:44px;color:var(--ink);flex:0 0 44px}
+  .header nav{display:none;position:absolute;left:env(safe-area-inset-left);right:env(safe-area-inset-right);top:calc(76px + env(safe-area-inset-top));max-height:calc(100dvh - 76px - env(safe-area-inset-top));overflow-y:auto;overscroll-behavior:contain;background:var(--paper);border-bottom:1px solid var(--line);padding:14px clamp(20px,4vw,35px) max(18px,env(safe-area-inset-bottom));flex-direction:column;gap:0;box-shadow:0 10px 15px #30362d10}
+  .header nav.is-open{display:flex}.header nav a{font-size:15px;padding:12px 0;min-height:44px;display:flex;align-items:center}
+  .header-cta{display:none}
+  .hero{grid-template-columns:1fr;padding-top:clamp(38px,7vw,64px);gap:36px}
+  .hero-copy{max-width:680px}.hero-visual{width:min(72vw,610px);margin-inline:auto}
+  .hero h1{font-size:clamp(48px,8vw,68px)}
+  .english-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.english-aside{grid-column:1/-1}
+  .signup-grid{grid-template-columns:1fr;gap:36px}.signup-grid>div:first-child{max-width:600px}
+  .faq-grid{grid-template-columns:minmax(210px,.65fr) 1.35fr;gap:42px}
+  .review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rating-card{grid-column:1/-1;display:flex;align-items:baseline;gap:18px}
+  .rating-card small{margin-left:auto}
+  input,textarea{font-size:16px}
+}
+@media(max-width:760px){
+  .wrap{width:calc(100% - 40px)}
+  .hero{padding-top:clamp(28px,8vw,42px);gap:30px}
+  .hero h1{font-size:clamp(40px,11.4vw,54px);line-height:1.08;letter-spacing:clamp(-3px,-.7vw,-2px)}
+  .hero-visual{width:100%}
+  .section{padding-top:clamp(52px,14vw,70px);padding-bottom:clamp(52px,14vw,70px)}
+  h2,.signup-grid h2,.atmosphere-grid h2,.contacts-grid h2{font-size:clamp(34px,9.2vw,42px)}
+  .faq-grid h2 br{display:block}
+  .faq-grid{grid-template-columns:1fr}
+  .review-grid{grid-template-columns:1fr}.rating-card{grid-column:auto}
+  .mobile-cta{left:env(safe-area-inset-left);right:env(safe-area-inset-right);padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right));padding-bottom:max(10px,env(safe-area-inset-bottom));transition:transform .2s ease-out}
+  .form-active .mobile-cta{transform:translateY(calc(100% + env(safe-area-inset-bottom)));pointer-events:none}
+  .footer{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+}
+@media(max-width:520px){
+  .hero-actions,.contact-actions{align-items:stretch;flex-direction:column;gap:10px}
+  .hero-actions .button,.hero-actions .text-link,.contact-actions .button,.contact-actions .text-link{width:100%;justify-content:center}
+  .hero-actions .text-link,.contact-actions .text-link{min-height:44px}
+  .hero-trust{align-items:flex-start;flex-wrap:wrap}.trust-divider{display:none}.hero-trust>span:last-child{width:100%}
+  .english-grid{grid-template-columns:1fr}.english-aside{grid-column:auto}
+  .section-heading{gap:20px}
+  .direction-options{grid-template-columns:1fr}.direction-option.consultation{grid-column:auto}
+  .form-row{grid-template-columns:1fr}
+  .activity-list>a{display:grid;grid-template-columns:48px minmax(0,1fr);column-gap:15px}
+  .activity-list>a>span:last-child{grid-column:2;margin:0;width:auto}
+  .map-bottom{align-items:stretch;flex-direction:column}.map-bottom .button{width:100%}
+  .footer{align-items:flex-start}
+}
+@media(max-width:360px){
+  .wrap{width:calc(100% - 32px)}
+  .header .brand{font-size:19px}.header .brand-flower{font-size:38px}
+  .hero h1{font-size:clamp(37px,11.7vw,42px)}
+  .hero-actions .button{padding-inline:14px}
+  .hero-trust{font-size:9px}
+  .hello-sticker{right:-2px;font-size:17px}.hello-sticker span{font-size:23px}
+  .photo-note{max-width:76%}
+  form{padding:22px 16px}
+  .mobile-cta{padding-left:10px;padding-right:10px;gap:8px}.mobile-cta .button{font-size:11px;padding-inline:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .submit-button:disabled:after{animation:none;border-color:#30362d}
+  .mobile-cta{transition:none}
+}

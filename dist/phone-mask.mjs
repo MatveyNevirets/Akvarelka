@@ -95,5 +95,9 @@ export function attachPhoneMask(input, normalized) {
   input.addEventListener('focus', () => { if (!digits) render(0); });
   input.addEventListener('blur', () => { if (!digits) input.value = ''; });
   render();
-  return { get value() { return normalized.value; }, get complete() { return digits.length === 10; } };
+  return {
+    get value() { return normalized.value; },
+    get complete() { return digits.length === 10; },
+    reset() { digits = ''; normalized.value = ''; input.value = ''; }
+  };
 }
