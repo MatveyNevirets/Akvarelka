@@ -33,6 +33,19 @@ try{
     assert.ok(layout.scrollWidth<=width+1,`${width}x${height}: horizontal overflow ${layout.scrollWidth}`);
     assert.deepEqual(layout.bad,[],`${width}x${height}: clipped elements ${JSON.stringify(layout.bad)}`);
     for(const button of layout.buttons)assert.ok(button.height>=43,`${width}x${height}: short button ${button.text} (${button.height})`);
+    const runtimeEmoji=await page.evaluate(()=>{
+      const isEmoji=character=>/\p{Emoji}/u.test(character)&&!/[0-9#*]/u.test(character);
+      const find=(value,source)=>[...String(value||'')].filter(isEmoji).map(character=>`${source}: ${character} U+${character.codePointAt(0).toString(16).toUpperCase()}`);
+      const hits=[];
+      const walker=document.createTreeWalker(document,NodeFilter.SHOW_TEXT);
+      while(walker.nextNode())hits.push(...find(walker.currentNode.nodeValue,walker.currentNode.parentElement?.tagName||'text'));
+      for(const element of document.querySelectorAll('*')){
+        for(const attribute of element.attributes)hits.push(...find(attribute.value,`${element.tagName}[${attribute.name}]`));
+        for(const pseudo of ['::before','::after'])hits.push(...find(getComputedStyle(element,pseudo).content,`${element.tagName}${pseudo}`));
+      }
+      return hits;
+    });
+    assert.deepEqual(runtimeEmoji,[],`${width}x${height}: emoji in runtime DOM ${runtimeEmoji.join(' | ')}`);
     assert.equal(errors.length,0,`${width}x${height}: console errors ${errors.join(' | ')}`);
     if(screenshotSizes.has(`${width}x${height}`))await page.screenshot({path:`qa-screenshots/page-${width}x${height}.png`,fullPage:true});
     findings.push(`${width}x${height}: ok`);
