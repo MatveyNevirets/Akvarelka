@@ -28,6 +28,7 @@ const submitLabel=submitButton.querySelector('.submit-label');
 const nameField=form.querySelector('#parent');
 const ageField=form.querySelector('#age');
 const phoneField=form.querySelector('#phone');
+const consentField=form.querySelector('#consent');
 const phone=attachPhoneMask(phoneField,form.querySelector('#phone-normalized'));
 const directionField=form.querySelector('.direction-field');
 const directions=[...form.querySelectorAll('[name="direction"]')].map(input=>({input,value:input.value,label:input.closest('label').querySelector('span').textContent.trim()}));
@@ -64,6 +65,7 @@ function validate(key){
   if(key==='age'&&(!/^\d+$/.test(ageField.value)||Number(ageField.value)<1||Number(ageField.value)>18))error='Укажите возраст от 1 до 18 лет';
   if(key==='phone'&&!phone.complete)error='Введите номер полностью';
   if(key==='direction'&&!selectedDirection())error='Выберите направление или консультацию';
+  if(key==='consent'&&!consentField.checked)error='Подтвердите согласие на обработку персональных данных';
   return showError(key,error);
 }
 function setFormTitle(){
@@ -88,20 +90,24 @@ document.querySelectorAll('a[href="#signup"]').forEach(link=>link.addEventListen
   field.addEventListener('input',()=>{if(touched.has(key))validate(key);});
 });
 form.addEventListener('input',clearOutcome);
+consentField.addEventListener('change',()=>{
+  submitButton.disabled=submitInFlight||!consentField.checked;
+  if(touched.has('consent'))validate('consent');
+});
 form.addEventListener('focusin',()=>document.body.classList.add('form-active'));
 form.addEventListener('focusout',()=>requestAnimationFrame(()=>{if(!form.contains(document.activeElement))document.body.classList.remove('form-active');}));
 
 function setBusy(busy){
   submitInFlight=busy;
   form.setAttribute('aria-busy',String(busy));
-  submitButton.disabled=busy;
+  submitButton.disabled=busy||!consentField.checked;
   submitLabel.textContent=busy?'Отправляем…':'Оставить заявку';
   directions.forEach(direction=>direction.input.disabled=busy);
-  [nameField,ageField,phoneField].forEach(field=>field.disabled=busy);
+  [nameField,ageField,phoneField,consentField].forEach(field=>field.disabled=busy);
 }
 function resetAfterSuccess(){
   form.reset();phone.reset();interestContext='';touched.clear();
-  ['direction','parent','age','phone'].forEach(key=>showError(key,''));
+  ['direction','parent','age','phone','consent'].forEach(key=>showError(key,''));
   setFormTitle();
 }
 
@@ -109,7 +115,7 @@ form.addEventListener('submit',async event=>{
   event.preventDefault();
   if(submitInFlight)return;
   clearOutcome();
-  const keys=['direction','parent','age','phone'];
+  const keys=['direction','parent','age','phone','consent'];
   const invalid=keys.filter(key=>{touched.add(key);return !validate(key);});
   if(invalid.length){
     form.dataset.state='error';
@@ -117,7 +123,7 @@ form.addEventListener('submit',async event=>{
     return;
   }
   const direction=selectedDirection();
-  const payload={parentName:nameField.value.trim(),childAge:Number(ageField.value),phone:phone.value,direction:direction.value,directionLabel:direction.label,context:interestContext||null,source:'akvarelka-website'};
+  const payload={parentName:nameField.value.trim(),childAge:Number(ageField.value),phone:phone.value,direction:direction.value,directionLabel:direction.label,context:interestContext||null,personalDataConsent:consentField.checked,source:'mel-i-mayak'};
   setBusy(true);form.dataset.state='submitting';
   try{
     await submitLead(payload);
@@ -125,9 +131,27 @@ form.addEventListener('submit',async event=>{
     feedback(successCard);successCard.focus({preventScroll:true});
   }catch(error){
     console.error('Lead submission failed',error);
-    status.textContent='Не удалось отправить заявку. Попробуйте ещё раз или позвоните нам.';
+    status.textContent='Не удалось подтвердить заявку. Попробуйте ещё раз.';
     status.hidden=false;successCard.hidden=true;form.dataset.state='error';feedback(status);
   }finally{setBusy(false);}
 });
+
+document.querySelectorAll('.privacy-link').forEach(link=>link.addEventListener('click',event=>event.preventDefault()));
+
+const cookieNotice=document.querySelector('#cookie-notice');
+function hasCookieChoice(){
+  try{return document.cookie.split(';').some(cookie=>/^site_cookie_consent=(accepted|essential)$/.test(cookie.trim()));}
+  catch{return false;}
+}
+function saveCookieChoice(choice){
+  try{
+    const secure=window.location.protocol==='https:'?'; Secure':'';
+    document.cookie=`site_cookie_consent=${choice}; Max-Age=15552000; Path=/; SameSite=Lax${secure}`;
+  }catch{/* The notice can still be dismissed when cookies are unavailable. */}
+  cookieNotice.hidden=true;
+}
+cookieNotice.hidden=hasCookieChoice();
+document.querySelector('#cookie-accept').addEventListener('click',()=>saveCookieChoice('accepted'));
+document.querySelector('#cookie-essential').addEventListener('click',()=>saveCookieChoice('essential'));
 
 initMotion();

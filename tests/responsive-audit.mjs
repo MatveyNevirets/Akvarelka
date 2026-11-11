@@ -32,6 +32,12 @@ try{
     });
     assert.ok(layout.scrollWidth<=width+1,`${width}x${height}: horizontal overflow ${layout.scrollWidth}`);
     assert.deepEqual(layout.bad,[],`${width}x${height}: clipped elements ${JSON.stringify(layout.bad)}`);
+    assert.equal(await page.locator('#cookie-notice').isVisible(),true);
+    if(width<=760){
+      const banner=await page.locator('#cookie-notice').boundingBox();
+      const cta=await page.locator('.mobile-cta').boundingBox();
+      assert.ok(banner.y+banner.height<=cta.y,`${width}: cookie notice overlaps the mobile CTA`);
+    }
     for(const button of layout.buttons)assert.ok(button.height>=43,`${width}x${height}: short button ${button.text} (${button.height})`);
     const runtimeEmoji=await page.evaluate(()=>{
       const isEmoji=character=>/\p{Emoji}/u.test(character)&&!/[0-9#*]/u.test(character);
@@ -56,33 +62,43 @@ try{
   const page=await context.newPage();
   const errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
   await page.goto(base,{waitUntil:'networkidle'});
+  await page.locator('#cookie-essential').click();
+  assert.equal(await page.locator('#cookie-notice').isVisible(),false);
+  await page.reload({waitUntil:'networkidle'});
+  assert.equal(await page.locator('#cookie-notice').isVisible(),false);
+  assert.equal((await context.cookies()).find(cookie=>cookie.name==='site_cookie_consent')?.value,'essential');
   await page.locator('.menu-toggle').click();
   assert.equal(await page.locator('#navigation').evaluate(element=>getComputedStyle(element).display),'flex');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
   await page.screenshot({path:'qa-screenshots/state-mobile-menu.png'});
   await page.locator('#navigation a').first().click();assert.equal(await page.locator('.menu-toggle').getAttribute('aria-expanded'),'false');
   await page.locator('#signup').scrollIntoViewIfNeeded();
+  assert.equal(await page.locator('#submit-lead').isDisabled(),true);
+  await page.locator('#consent').check();
   await page.locator('#submit-lead').click();assert.equal(await page.locator('#parent-error').isVisible(),true);
   await page.screenshot({path:'qa-screenshots/state-form-errors.png'});
   await page.locator('[name="direction"][value="english"]').check();
   await page.locator('#parent').fill('Анна');await page.locator('#age').fill('7');await page.locator('#phone').fill('89271234567');
   await page.evaluate(()=>{const meta=document.createElement('meta');meta.name='lead-endpoint';meta.content='/api/leads';document.head.append(meta);});
-  await page.route('**/api/leads',async route=>{await new Promise(resolve=>setTimeout(resolve,500));await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({success:true,id:'qa'})});});
+  const submissions=[];
+  page.on('request',request=>{if(request.method()!=='GET')submissions.push(request.url());});
+  await page.evaluate(()=>{
+    const form=document.querySelector('#lead-form');
+    const observer=new MutationObserver(()=>{
+      if(form.dataset.state==='submitting')window.demoWasBusy=document.querySelector('#submit-lead').disabled;
+    });
+    observer.observe(form,{attributes:true,attributeFilter:['data-state']});
+  });
   await page.locator('#submit-lead').click();
-  assert.equal(await page.locator('#submit-lead').isDisabled(),true);assert.match(await page.locator('#submit-lead').textContent(),/Отправляем/);
-  await page.screenshot({path:'qa-screenshots/state-form-loading.png'});
   await page.locator('#success-card').waitFor({state:'visible'});assert.equal(await page.locator('#parent').inputValue(),'');
+  assert.equal(await page.evaluate(()=>window.demoWasBusy),true);
+  assert.deepEqual(submissions,[]);
+  assert.match(await page.locator('#success-card').textContent(),/Заявка принята/);
+  assert.equal(await page.locator('#consent').isChecked(),false);
+  assert.equal(await page.locator('#submit-lead').isDisabled(),true);
   await page.screenshot({path:'qa-screenshots/state-form-success.png'});
   assert.equal(errors.length,0,`state checks: console errors ${errors.join(' | ')}`);await context.close();
 
-  const errorContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,reducedMotion:'reduce'});
-  const errorPage=await errorContext.newPage();
-  await errorPage.goto(base,{waitUntil:'networkidle'});await errorPage.locator('#signup').scrollIntoViewIfNeeded();
-  await errorPage.locator('#parent').fill('Анна');await errorPage.locator('#age').fill('7');await errorPage.locator('#phone').fill('89271234567');
-  await errorPage.evaluate(()=>{const meta=document.createElement('meta');meta.name='lead-endpoint';meta.content='/api/leads';document.head.append(meta);});
-  await errorPage.route('**/api/leads',route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({success:false})}));
-  await errorPage.locator('#submit-lead').click();await errorPage.locator('#form-status').waitFor({state:'visible'});
-  assert.equal(await errorPage.locator('#success-card').isVisible(),false);await errorPage.screenshot({path:'qa-screenshots/state-form-error.png'});await errorContext.close();
-  const report=findings.concat('Interactive states: menu, validation, loading, success and error — ok').join('\n');
+  const report=findings.concat('Interactive states: menu, validation, loading and local demo confirmation; no submission requests — ok').join('\n');
   await writeFile('qa-screenshots/audit-report.txt',report,'utf8');console.log(report);
 }finally{await browser.close();}

@@ -24,7 +24,7 @@ function edit(inputType,data=null){field('phone').dispatchEvent(new window.Input
 function submit(){field('lead-form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true}));}
 async function settle(){await new Promise(resolve=>setTimeout(resolve,0));}
 function endpoint(value='/api/leads'){const meta=document.createElement('meta');meta.name='lead-endpoint';meta.content=value;document.head.append(meta);}
-function validForm(){input('parent','Анна');input('age','7');field('phone').focus();paste('89271234567');}
+function validForm(){input('parent','Анна');input('age','7');field('phone').focus();paste('89271234567');if(!field('consent').checked)field('consent').click();}
 const direction = value => document.querySelector(`[name="direction"][value="${value}"]`);
 const selected = () => document.querySelector('[name="direction"]:checked')?.value;
 
@@ -91,48 +91,44 @@ test('direction is required even if the initial consultation was cleared',()=>{
   assert.equal(field('direction-error').hidden,false);
   direction('consultation').click();assert.equal(field('direction-error').hidden,true);
 });
-test('English CTAs select English; manual direction change overrides the CTA payload',async()=>{
+test('English CTAs select English; manual direction change works before demo confirmation',async()=>{
   document.querySelector('.english-card a').click();assert.equal(selected(),'english');
   direction('art').click();assert.equal(selected(),'art');
-  endpoint();let payload;
-  window.fetch=async(url,options)=>{payload=JSON.parse(options.body);return{ok:true,json:async()=>({success:true})};};
+  assert.equal(field('lead-form').querySelector('h3').textContent,'Обсудить: художественные курсы');
   validForm();submit();await settle();
-  assert.equal(payload.directionLabel,'Художественные курсы');
-  assert.equal(payload.context,null);
-  assert.equal(payload.phone,'+79271234567');
+  assert.equal(field('lead-form').dataset.state,'success');
 });
 test('every CTA maps to its context, while general CTAs choose consultation',()=>{
   const cases=[['.hero-actions a','english'],['.english-card.lavender a','english'],['.header-cta','consultation'],['.mobile-cta a','consultation'],['.contact-actions a[href="#signup"]','consultation'],['.activity-list a:nth-child(1)','school'],['.activity-list a:nth-child(2)','art'],['.activity-list a:nth-child(3)','children']];
   for(const [selector,value] of cases){document.querySelector(selector).click();assert.equal(selected(),value,selector);}
 });
-test('confirmed API response shows success, clears fields and never creates a WhatsApp action',async()=>{
+test('demo success clears fields and never sends a request even with an injected endpoint',async()=>{
   endpoint();let count=0;
   window.fetch=async()=>{count++;return{ok:true,json:async()=>({success:true,id:'lead-1'})};};
   validForm();submit();await settle();
-  assert.equal(count,1);assert.equal(field('lead-form').dataset.state,'success');
+  assert.equal(count,0);assert.equal(field('lead-form').dataset.state,'success');
+  assert.match(field('success-card').textContent,/Заявка принята/);
   assert.equal(field('success-card').hidden,false);assert.equal(field('form-status').hidden,true);
   assert.equal(field('parent').value,'');assert.equal(field('phone-normalized').value,'');assert.equal(selected(),'consultation');
   assert.equal(field('lead-form').querySelector('[href*="wa.me"]'),null);
   assert.equal(field('lead-form').textContent.includes('WhatsApp'),false);
   assert.equal(field('lead-form').textContent.includes('Скопировать'),false);
 });
-test('loading disables repeat submit and restores controls after confirmed success',async()=>{
-  endpoint();let resolveFetch;let count=0;
-  window.fetch=()=>{count++;return new Promise(resolve=>{resolveFetch=resolve;});};
+test('loading disables repeat submit and restores controls after demo confirmation',async()=>{
   validForm();submit();submit();
-  assert.equal(count,1);assert.equal(field('submit-lead').disabled,true);assert.equal(field('submit-lead').textContent.includes('Отправляем'),true);assert.equal(field('lead-form').getAttribute('aria-busy'),'true');
-  resolveFetch({ok:true,json:async()=>({success:true})});await settle();
-  assert.equal(field('submit-lead').disabled,false);assert.equal(field('lead-form').getAttribute('aria-busy'),'false');
+  assert.equal(field('submit-lead').disabled,true);assert.equal(field('submit-lead').textContent.includes('Отправляем'),true);assert.equal(field('lead-form').getAttribute('aria-busy'),'true');
+  await settle();
+  assert.equal(field('submit-lead').disabled,true);assert.equal(field('lead-form').getAttribute('aria-busy'),'false');
+  assert.equal(field('consent').checked,false);
 });
-test('local API stub succeeds, while a configured server failure shows an error',async()=>{
-  const originalError=console.error;console.error=()=>{};
-  try{
+test('repeated valid demo submissions remain local',async()=>{
+  endpoint();let requests=0;
+  window.fetch=()=>{requests++;throw new Error('Unexpected request');};
+  for(let i=0;i<2;i++){
     validForm();submit();await settle();
     assert.equal(field('form-status').hidden,true);assert.equal(field('success-card').hidden,false);
-    endpoint();window.fetch=async()=>({ok:false,status:500,json:async()=>({success:false})});
-    validForm();
-    submit();await settle();assert.equal(field('form-status').hidden,false);assert.equal(field('success-card').hidden,true);
-  }finally{console.error=originalError;}
+  }
+  assert.equal(requests,0);
 });
 test('all local resources, module imports, anchors and error descriptions exist',()=>{
   for(const element of document.querySelectorAll('[src],link[href]')){
@@ -153,4 +149,43 @@ test('mobile menu closes after navigation; Escape does not steal unrelated form 
 test('national number parsing supports different codes without locking to 927',()=>{
   assert.equal(formatPhone(nationalDigits('84951234567')),'+7 (495) 123-45-67');
   assert.equal(formatPhone(nationalDigits('+7 800 123 45 67')),'+7 (800) 123-45-67');
+});
+
+test('consent is unchecked by default and blocks even a direct submit event',async()=>{
+  validForm();field('consent').click();
+  assert.equal(field('consent').required,true);
+  assert.equal(field('submit-lead').disabled,true);
+  submit();await settle();
+  assert.equal(field('success-card').hidden,true);
+  assert.equal(field('consent-error').hidden,false);
+  assert.equal(field('consent').getAttribute('aria-invalid'),'true');
+  assert.equal(document.activeElement,field('consent'));
+  field('consent').click();assert.equal(field('submit-lead').disabled,false);
+  assert.equal(field('consent-error').hidden,true);
+  submit();await settle();assert.equal(field('success-card').hidden,false);
+  assert.equal(field('consent').checked,false);assert.equal(field('submit-lead').disabled,true);
+});
+
+test('cookie notice requires an explicit choice and remembers acceptance',async()=>{
+  assert.equal(field('cookie-notice').hidden,false);
+  assert.equal(document.cookie,'');
+  field('cookie-accept').click();
+  assert.equal(field('cookie-notice').hidden,true);
+  assert.match(document.cookie,/site_cookie_consent=accepted/);
+  await import('../dist/app.js?cookie=' + count++);
+  assert.equal(field('cookie-notice').hidden,true);
+});
+
+test('only necessary cookies is a separate stored choice',()=>{
+  field('cookie-essential').click();
+  assert.equal(field('cookie-notice').hidden,true);
+  assert.match(document.cookie,/site_cookie_consent=essential/);
+  assert.doesNotMatch(document.cookie,/accepted/);
+});
+
+test('privacy policy is a local placeholder without navigation',()=>{
+  const link=document.querySelector('.footer .privacy-link');
+  assert.equal(link.getAttribute('href'),'#');
+  const event=new window.MouseEvent('click',{bubbles:true,cancelable:true});
+  link.dispatchEvent(event);assert.equal(event.defaultPrevented,true);
 });
